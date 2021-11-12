@@ -1,0 +1,650 @@
+<!doctype html>
+<html>
+
+<head>
+    <title>Circular Chat App</title>
+    <link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/@mdi/font@4.x/css/materialdesignicons.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.min.css" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, minimal-ui">
+    <style type="text/css">
+        .chat-message-box {
+            display: flex;
+            width: 100%;
+            align-items: center;
+            padding-right: 1rem;
+        }
+
+        .chat-message-area {
+            flex-grow: 1;
+            padding: 1rem;
+        }
+
+        .chat-wrapper {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chat-content-wrapper {
+            flex-grow: 1;
+            display: flex;
+            background: #f8f9fa;
+            position: relative;
+        }
+
+        .chats-message-listing {
+            width: 100%;
+            padding: 0 !important;
+            margin: 0 !important;
+            height: 100%;
+            overflow: auto;
+            overflow-x: hidden;
+            position: absolute;
+            left: 0;
+            top: 0;
+        }
+
+        html {
+            overflow: hidden;
+        }
+
+        /*message css*/
+        .msg {
+            width: 100%;
+            height: auto;
+            display: block;
+            overflow: hidden;
+        }
+
+        .msg .bubble {
+            float: left;
+            max-width: 75%;
+            width: auto;
+            height: auto;
+            display: block;
+            background: #ebebeb;
+            border-radius: 5px;
+            position: relative;
+            margin: 10px 0 3px 25px;
+            box-shadow: 0px 2px 1px rgba(0, 0, 0, 0.2);
+        }
+
+        .msg .bubble.alt {
+            margin: 10px 25px 3px 0px;
+            background: #DCF8C6;
+            float: right;
+        }
+
+        .msg .bubble.follow {
+            margin: 2px 0 3px 25px;
+        }
+
+        .msg .bubble.altfollow {
+            margin: 2px 25px 3px 0px;
+            background: #DCF8C6;
+            float: right;
+        }
+
+        .msg .bubble .txt {
+            padding: 8px 0 8px 0;
+            width: 100%;
+        }
+
+        .msg .bubble .txt .name {
+            font-weight: 600;
+            font-size: 14px;
+            display: inline-table;
+            padding: 0 0 0 15px;
+            margin: 0 0 4px 0;
+            color: #3498db;
+        }
+
+        .msg .bubble .txt .name span {
+            font-weight: normal;
+            color: #b3b3b3;
+            overflow: hidden;
+        }
+
+        .msg .bubble .txt .name.alt {
+            color: #2ecc51;
+        }
+
+        .msg .bubble .txt .message {
+            font-size: 14px;
+            font-weight: 500;
+            padding: 0 15px 0 15px;
+            margin: auto;
+            color: #2b2b2b;
+            display: flex;
+        }
+
+        .msg .bubble .txt .timestamp {
+            font-size: 11px;
+            margin: auto;
+            padding: 0 15px 0 0;
+            display: table;
+            float: right;
+            position: relative;
+            text-transform: uppercase;
+            color: #999;
+            margin-left: 10px;
+        }
+
+        .msg .bubble .bubble-arrow {
+            position: absolute;
+            float: left;
+            left: -11px;
+            top: 0px;
+        }
+
+        .msg .bubble .bubble-arrow.alt {
+            bottom: 20px;
+            left: auto;
+            right: 4px;
+            float: right;
+        }
+
+        .msg .bubble .bubble-arrow:after {
+            content: "";
+            position: absolute;
+            border-top: 15px solid #ebebeb;
+            border-left: 15px solid transparent;
+            border-radius: 4px 0 0 0px;
+            width: 0;
+            height: 0;
+        }
+
+        .msg .bubble .bubble-arrow.alt:after {
+            border-top: 15px solid #DCF8C6;
+            transform: scaleX(-1);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app-section" id="CircularChatApp">
+        <v-app>
+            <v-system-bar app color="teal lighten-5">
+                <v-spacer></v-spacer>
+
+                <v-tooltip left>
+                    <template v-slot:activator="{ on, attrs }">
+                        <v-icon v-bind="attrs" v-on="on" :color="onlineUsers > 1 ? 'white' : 'red darken-4'"
+                            v-bind="attrs" v-on="on">mdi-circle
+                        </v-icon>
+                    </template>
+                    <span>{{onlineUsers - 1}} users online</span>
+                </v-tooltip>
+                <v-tooltip left>
+                    <template v-slot:activator="{ on, attrs }">
+                        <v-icon :color="socketStatus ? 'teal' : 'red darken-4'" v-bind="attrs" v-on="on">{{socketStatus
+                            ? 'mdi-terrain':'mdi-test-tube'}}
+                        </v-icon>
+                    </template>
+                    <span>{{socketStatus ? 'Online' : 'Offline'}}</span>
+                </v-tooltip>
+
+            </v-system-bar>
+            <v-navigation-drawer v-model="drawer" app color="teal lighten-5">
+                <v-btn block large text color="grey" @click="newGroupSelectionModal = true"
+                    :loading="newGroupSelectionModal">
+                    <v-icon>mdi-playlist-plus mr-2</v-icon>
+                    New Group
+                </v-btn>
+                <v-list subheader v-if="rooms.length > 0" class="online-user-listing">
+                    <v-subheader style="height: auto !important;">Groups</v-subheader>
+                    <v-list-item v-for="group in rooms" :key="group.roomId" @click="getRoomMessage(group.roomId)">
+                        <v-list-item-content>
+                            <v-list-item-title v-text="group.roomName"></v-list-item-title>
+                        </v-list-item-content>
+
+                        <v-list-item-icon>
+                            <v-icon color="grey">
+                                mdi-message-outline
+                            </v-icon>
+                        </v-list-item-icon>
+                    </v-list-item>
+                </v-list>
+                <v-divider></v-divider>
+                <v-list subheader v-if="userListing.length > 0" class="online-user-listing">
+                    <v-subheader style="height: auto !important;">Online Users</v-subheader>
+                    <v-list-item v-for="user in userListing" :key="user.uid">
+                        <v-list-item-avatar>
+                            <v-img :alt="user.displayName" :src="user.photoURL"></v-img>
+                        </v-list-item-avatar>
+
+                        <v-list-item-content>
+                            <v-list-item-title v-text="user.displayName"></v-list-item-title>
+                            <v-list-item-subtitle>{{user.email}}</v-list-item-subtitle>
+                        </v-list-item-content>
+
+                        <v-list-item-icon>
+                            <v-icon color="grey">
+                                mdi-message-outline
+                            </v-icon>
+                        </v-list-item-icon>
+                    </v-list-item>
+                </v-list>
+            </v-navigation-drawer>
+
+            <v-app-bar app color="teal lighten-4" flat>
+                <v-app-bar-nav-icon @click="drawer = !drawer">
+                    <v-icon large>{{drawer ? 'mdi-chevron-left' : 'mdi-chevron-right'}}</v-icon>
+                </v-app-bar-nav-icon>
+
+                <v-toolbar-title>{{selectedRoom == null ? 'Circular Chat App' : selectedRoom.roomName}}
+                </v-toolbar-title>
+            </v-app-bar>
+
+            <v-main>
+                <div class="chat-wrapper" v-if="selectedRoom != null">
+                    <div class="chat-content-wrapper">
+                        <ul class="chats-message-listing">
+                            <li v-for="message in messages" :key="message.Id">
+                                <div class="msg" v-if="message.user.uid != me.uid && !isContinueMessage(message)">
+                                    <div class="bubble">
+                                        <div class="txt">
+                                            <span class="name">{{message.user.displayName}}</span>
+                                            <span class="timestamp">10:20 pm</span>
+                                            <span class="message" v-text="message.message"></span>
+                                        </div>
+                                        <div class="bubble-arrow"></div>
+                                    </div>
+                                </div>
+                                <div class="msg" v-if="message.user.uid != me.uid && isContinueMessage(message)">
+                                    <div class="bubble follow">
+                                        <div class="txt">
+                                            <span class="timestamp">10:21 pm</span>
+                                            <span class="message follow" v-text="message.message"></span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="msg" v-if="message.user.uid == me.uid && !isContinueMessage(message)">
+                                    <div class="bubble altfollow">
+                                        <div class="txt">
+                                            <span class="timestamp">10:22 pm</span>
+                                            <p class="message follow" v-text="message.message"></p>
+                                        </div>
+                                        <div class="bubble-arrow alt"></div>
+                                    </div>
+                                </div>
+                                <div class="msg" v-if="message.user.uid == me.uid && isContinueMessage(message)">
+                                    <div class="bubble altfollow">
+                                        <div class="txt">
+                                            <span class="timestamp">10:21 pm</span>
+                                            <p class="message follow" v-text="message.message"></p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="chat-message-box">
+                        <div class="chat-message-area">
+                            <v-text-field v-model="messageValue" filled placeholder="Type a message.." rounded clearable
+                                hide-details @keypress="sendMessageEnter($event)">
+                            </v-text-field>
+                        </div>
+                        <v-btn icon @click="sendMessage">
+                            <v-icon>mdi-send</v-icon>
+                        </v-btn>
+                    </div>
+                </div>
+            </v-main>
+
+            <v-dialog v-model="authstatmodal" fullscreen hide-overlay transition="dialog-bottom-transition">
+                <v-card>
+                    <v-tabs background-color="transparent" color="basil" v-model="authTabs" centered>
+                        <v-tab>
+                            Sign In
+                        </v-tab>
+                        <v-tab>
+                            Sign Up
+                        </v-tab>
+                    </v-tabs>
+
+                    <v-tabs-items v-model="authTabs">
+                        <v-tab-item>
+                            <v-card flat>
+                                <v-col cols="12" md="4" class="mx-auto">
+                                    <form>
+                                        <v-text-field outlined v-model="signIn.email" yupe="email" label="E-mail"
+                                            required>
+                                        </v-text-field>
+                                        <v-text-field outlined v-model="signIn.password" label="Password"
+                                            type="password" required>
+                                        </v-text-field>
+                                        <v-btn class="mr-4" color="teal" block dark @click="setSignIn">
+                                            Sign In
+                                        </v-btn>
+                                    </form>
+                                </v-col>
+                            </v-card>
+                        </v-tab-item>
+                        <v-tab-item>
+                            <v-card flat>
+                                <v-col cols="12" md="4" class="mx-auto">
+                                    <form>
+                                        <v-text-field outlined v-model="signUp.fullName" label="Name" required>
+                                        </v-text-field>
+                                        <v-text-field outlined v-model="signUp.email" yupe="email" label="E-mail"
+                                            required>
+                                        </v-text-field>
+                                        <v-text-field outlined v-model="signUp.password" label="Password"
+                                            type="password" required>
+                                        </v-text-field>
+                                        <v-text-field outlined v-model="signUp.rePassword" label="Re Password"
+                                            type="password" required>
+                                        </v-text-field>
+
+                                        <v-btn class="mr-4" color="teal" block dark @click="setSign">
+                                            Sign Up Now
+                                        </v-btn>
+                                    </form>
+                                </v-col>
+                            </v-card>
+                        </v-tab-item>
+                    </v-tabs-items>
+                </v-card>
+            </v-dialog>
+            <v-dialog transition="dialog-bottom-transition" max-width="600" v-model="newGroupSelectionModal">
+                <v-card>
+                    <v-card-title>Select Person</v-card-title>
+                    <v-card-text v-if="userListing.length > 0">
+                        <v-autocomplete v-model="newGroupSelection" :items="userListing" chips label="Persons"
+                            full-width hide-details hide-no-data hide-selected multiple single-line
+                            item-text="displayName" item-value="uid" append-outer-icon="mdi-check"
+                            @click:append-outer="createGroup">
+                            <template v-slot:selection="data">
+                                <v-chip v-bind="data.attrs" :input-value="data.selected" close @click="data.select"
+                                    @click:close="newGroupSelectionRemove(data.item)">
+                                    <v-avatar left>
+                                        <v-img :src="data.item.photoURL"></v-img>
+                                    </v-avatar>
+                                    {{ data.item.displayName }}
+                                </v-chip>
+                            </template>
+                            <template v-slot:item="data">
+                                <template v-if="typeof data.item !== 'object'">
+                                    <v-list-item-content v-text="data.item"></v-list-item-content>
+                                </template>
+                                <template v-else>
+                                    <v-list-item-avatar>
+                                        <img :src="data.item.photoURL">
+                                    </v-list-item-avatar>
+                                    <v-list-item-content>
+                                        <v-list-item-title v-html="data.item.displayName"></v-list-item-title>
+                                        <v-list-item-subtitle v-html="data.item.email"></v-list-item-subtitle>
+                                    </v-list-item-content>
+                                </template>
+                            </template>
+                        </v-autocomplete>
+                    </v-card-text>
+                    <v-card-text v-else>
+                        Could not find active people to group with
+                    </v-card-text>
+                    <v-card-actions class="justify-end">
+                        <v-btn text @click="newGroupSelectionModal = false">Close</v-btn>
+                        <v-btn text @click="createGroup" color="teal" v-if="userListing.length > 0">Start To Chat
+                        </v-btn>
+                    </v-card-actions>
+                </v-card>
+            </v-dialog>
+        </v-app>
+    </div>
+    <ul id="messages"></ul>
+    <form>
+
+    </form>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.21.1/axios.min.js"></script>
+    <!-- <script src="https://cdn.jsdelivr.net/npm/vue@2/dist/vue.js"></script> -->
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.x/dist/vue.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vue-cookies@1.7.4/vue-cookies.min.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        var socket = io();
+        // $(function () {
+        //     var socket = io();
+        //     $('form').submit(function (e) {
+        //         e.preventDefault(); // prevents page reloading
+        //         socket.emit('chat message', $('#m').val());
+        //         $('#m').val('');
+        //         return false;
+        //     });
+        //     socket.on('chat message', function (msg) {
+        //         $('#messages').append($('<li>').text(msg));
+        //     });
+        // });
+
+        var app = new Vue({
+            el: "#CircularChatApp",
+            name: "App",
+            vuetify: new Vuetify(),
+            data() {
+                return {
+                    links: [
+                        ['mdi-inbox-arrow-down', 'Inbox'],
+                        ['mdi-send', 'Send'],
+                        ['mdi-delete', 'Trash'],
+                        ['mdi-alert-octagon', 'Spam'],
+                    ],
+
+                    onlineUsers: 0,
+                    userList: [],
+                    rooms: [],
+                    drawer: true,
+                    socketStatus: false,
+                    authTabs: 0,
+                    authstatmodal: false,
+                    authtabs: 1,
+                    me: null,
+                    signUp: {
+                        fullName: "",
+                        email: "",
+                        password: "",
+                        rePassword: ""
+                    },
+                    signIn: {
+                        email: "",
+                        password: "",
+                    },
+                    newGroupSelectionModal: false,
+                    newGroupSelection: [],
+                    selectedRoom: null,
+                    messageValue: "",
+                    messages: []
+                }
+            },
+            methods: {
+                async setSign() {
+                    const response = await axios.post('/sign-up', this.signUp);
+                    if (response.status == 200) {
+                        const token = response.data;
+                        $cookies.set('authstat', token);
+                        this.authstatmodal = false;
+                    }
+                },
+                async setSignIn() {
+                    const response = await axios.post('/sign-in', this.signIn);
+                    if (response.status == 200) {
+                        const token = response.data;
+                        $cookies.set('authstat', token);
+                        const meResponse = await axios.get('/me', {
+                            headers: {
+                                'Authorization': `Bearer ${token}`
+                            }
+                        });
+                        if (response.status != 200) {
+                            return;
+                        }
+                        this.authstatmodal = false;
+                        if (this.socketStatus) {
+                            socket.emit('add user', meResponse.data);
+                            this.me = meResponse.data;
+                        }
+                    }
+                },
+                newGroupSelectionRemove(item) {
+                    this.newGroupSelection = this.newGroupSelection.filter(x => x != item.uid);
+                },
+                async createGroup() {
+                    const token = $cookies.get('authstat');
+                    if (this.newGroupSelection.length == 0) return;
+                    let roomName = "";
+                    let users = [...this.newGroupSelection];
+                    users.push(this.me.uid);
+                    this.newGroupSelection.forEach(uid => {
+                        let userData = this.userList.filter(x => x.uid == uid)[0];
+                        if (userData == null) return;
+                        let name = userData.displayName;
+                        roomName += roomName == "" ? name : ' - ' + name;
+                    });
+                    roomName += ' - ' + this.me.displayName;
+                    const responses = await axios.post('/chat/rooms', {
+                        roomName: roomName,
+                        users: users
+                    }, {
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    })
+                    this.newGroupSelectionModal = false;
+                },
+                async getRoomMessage(id) {
+                    console.log(id);
+                    const token = $cookies.get('authstat');
+                    const response = await axios.get('/chat/rooms?id=' + id, {
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+                    if (response.data == null) {
+                        this.selectedRoom = null;
+                        return;
+                    }
+                    this.selectedRoom = {
+                        id: response.data.roomId,
+                        roomName: response.data.roomName
+                    };
+                },
+                sendMessage() {
+                    socket.emit('new message', {
+                        roomId: this.selectedRoom.id,
+                        message: this.messageValue
+                    });
+                    this.messageValue = "";
+                },
+                sendMessageEnter(event) {
+                    if (event.keyCode === 13) this.sendMessage();
+                }
+            },
+            computed: {
+                userListing: function () {
+                    return this.me == null || this.userList == undefined ? [] : this.userList.filter(x => x != null).filter(x => x.email != this.me.email);
+                },
+                isContinueMessage: function (message) {
+                    return (message) => {
+                        const index = this.messages.indexOf(message);
+                        const prev = this.messages[index - 1];
+                        if (prev == null || prev == undefined) return false;
+                        return prev.user.uid == message.user.uid;
+                    }
+                }
+            },
+
+            //#region EVENTS
+            created() {
+                const token = $cookies.get('authstat');
+                axios.get('/me', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                }).then(res => {
+                    if (res.status == 200) {
+                        socket.emit('rooms', res.data);
+                        socket.emit('add user', res.data);
+                        this.me = res.data;
+                    }
+                }).catch(err => {
+                    this.authstatmodal = true;
+                });
+
+            }
+            //#endregion
+        });
+
+        //#region IO EVENTS
+        socket.on('connect', function () {
+            app.$data.socketStatus = socket.connected;
+        });
+        socket.on('disconnect', function () {
+            app.$data.socketStatus = false;
+        });
+        socket.on('login', (data) => {
+            connected = true;
+            // Display the welcome message
+            var message = "Welcome to Socket.IO Chat – ";
+            // log(message, {
+            //     prepend: true
+            // });
+            app.$data.onlineUsers = data.numUsers;
+            app.$data.userList = data.users;
+        });
+
+        // Whenever the server emits 'new message', update the chat body
+        socket.on('new message', function (data) {
+            app.$data.messages = data;
+            document.querySelector(".chats-message-listing").scrollTop = document.querySelector(".chats-message-listing").scrollHeight;
+            setTimeout(function () {
+                document.querySelector(".chats-message-listing").scrollTop = document.querySelector(".chats-message-listing").scrollHeight;
+            }, 100);
+        });
+
+        // Whenever the server emits 'user joined', log it in the chat body
+        socket.on('user joined', (data) => {
+            app.$data.userList = data.users;
+            app.$data.onlineUsers = data.numUsers;
+        });
+
+        // Whenever the server emits 'user left', log it in the chat body
+        socket.on('user left', (data) => {
+            app.$data.userList = data.users;
+            app.$data.onlineUsers = data.numUsers;
+        });
+
+        // Whenever the server emits 'typing', show the typing message
+        socket.on('typing', (data) => {
+            console.log(data);
+        });
+
+        // Whenever the server emits 'stop typing', kill the typing message
+        socket.on('stop typing', (data) => {
+            console.log(data);
+        });
+
+        socket.on('disconnect', () => {
+            console.log('you have been disconnected');
+        });
+
+        socket.on('reconnect', () => {
+            log('you have been reconnected');
+            if (username) {
+                socket.emit('add user', username);
+            }
+        });
+
+        socket.on('reconnect_error', () => {
+            console.log('attempt to reconnect has failed');
+        });
+
+        socket.on('rooms', (data) => {
+            app.$data.rooms = data.rooms;
+        });
+        //#region
+    </script>
+</body>
+
+</html>
